@@ -298,6 +298,7 @@ target_include_directories(angle_shader_translator_standalone PUBLIC
     ${ANGLE_ROOT}/third_party/spirv-tools/src/include/
     ${ANGLE_ROOT}/src/common/base
     ${ANGLE_ROOT}/src/common/spirv
+    ${ANGLE_ROOT}/src/common/third_party/xxhash
     ${CMAKE_CURRENT_SOURCE_DIR} # we need to copy ANGLEShaderProgramVersion.h and angle_commit.h from build folder (or generate them)
 )
 

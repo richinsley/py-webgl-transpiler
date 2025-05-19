@@ -27,7 +27,7 @@ fetch angle
 # rm -rf out/M1_Static_Release # Or whatever you want to name it
 
 # Configure for x64 or arm64, release, and more static linking
-gn gen out/M1_Static_Release --args='
+gn gen out/static_release --args='
     target_cpu="x64"
     is_debug=false
     is_component_build=false
