@@ -7,12 +7,13 @@
 mkdir -p tools
 cd tools
 # add depot_tools
-git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git tools
+git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git .
 # download gn for linux (see other platforms above)
 wget --content-disposition -P tools/ https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest
-unzip tools/*.zip -d tools
-chmod a+x tools/gn
+unzip tools/*.zip -d .
+# chmod a+x tools/gn
 # add gn and depot tools to path
+cd ..
 export PATH=$PWD/tools:$PWD/tools/depot_tools:$PATH
 ```
 

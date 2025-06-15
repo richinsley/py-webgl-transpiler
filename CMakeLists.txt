@@ -231,13 +231,12 @@ set(ANGLE_COMMON_SOURCES
     ${ANGLE_ROOT}/src/common/PackedEnums.cpp
     ${ANGLE_ROOT}/src/common/PackedGLEnums_autogen.cpp # Assumes pre-generated
     ${ANGLE_ROOT}/src/common/PoolAlloc.cpp # Also in TRANSLATOR_CORE_SOURCES, ensure listed once effectively
-    ${ANGLE_ROOT}/src/common/SimpleMutex.cpp
+    # ${ANGLE_ROOT}/src/common/SimpleMutex.cpp
     ${ANGLE_ROOT}/src/common/WorkerThread.cpp
     ${ANGLE_ROOT}/src/common/aligned_memory.cpp
     ${ANGLE_ROOT}/src/common/android_util.cpp
     ${ANGLE_ROOT}/src/common/angleutils.cpp
     ${ANGLE_ROOT}/src/common/base/anglebase/sha1.cc
-    ${ANGLE_ROOT}/src/common/debug.cpp
     ${ANGLE_ROOT}/src/common/entry_points_enum_autogen.cpp # Assumes pre-generated
     ${ANGLE_ROOT}/src/common/event_tracer.cpp
     ${ANGLE_ROOT}/src/common/mathutil.cpp
@@ -263,10 +262,18 @@ set(ANGLE_SPIRV_UTIL_SOURCES
 
 ## ALERT we need to ensure this works with WASM or create a WASM specific version
 ##  this is abstracted in angle/src/common/system_utils.cpp
-set(SYSTEM_UTILS_SOURCES
-    ${ANGLE_ROOT}/src/common/system_utils_posix.cpp
-    ${ANGLE_ROOT}/src/common/system_utils_linux.cpp
-)
+if(EMSCRIPTEN)
+    # Emscripten has its own implementation for system utilities.
+    set(SYSTEM_UTILS_SOURCES
+        ${ANGLE_ROOT}/src/common/system_utils_emscripten.cpp
+    )
+else()
+    # Your original logic for native builds (Linux, etc.)
+    set(SYSTEM_UTILS_SOURCES
+        ${ANGLE_ROOT}/src/common/system_utils_posix.cpp
+        ${ANGLE_ROOT}/src/common/system_utils_linux.cpp
+    )
+endif()
 
 # --- Executable Target ---
 add_executable(angle_shader_translator_standalone
@@ -285,6 +292,17 @@ add_executable(angle_shader_translator_standalone
     # ${TRANSLATOR_HLSL_BACKEND_SOURCES}
 )
 
+# Conditionally add the correct implementation of debug.cpp
+if(EMSCRIPTEN)
+    target_sources(angle_shader_translator_standalone PRIVATE
+        ${ANGLE_ROOT}/src/common/debug_wasm.cpp
+    )
+else()
+    target_sources(angle_shader_translator_standalone PRIVATE
+        ${ANGLE_ROOT}/src/common/debug.cpp
+    )
+endif()
+
 # --- Include Directories ---
 target_include_directories(angle_shader_translator_standalone PUBLIC
     ${ANGLE_ROOT}/include
@@ -299,30 +317,64 @@ target_include_directories(angle_shader_translator_standalone PUBLIC
     ${ANGLE_ROOT}/src/common/base
     ${ANGLE_ROOT}/src/common/spirv
     ${ANGLE_ROOT}/src/common/third_party/xxhash
-    ${CMAKE_CURRENT_SOURCE_DIR} # we need to copy ANGLEShaderProgramVersion.h and angle_commit.h from build folder (or generate them)
+    ${CMAKE_CURRENT_SOURCE_DIR} # we need to copy ANGLEShaderProgramVersion.h and angle_commit.h from build folder
 )
 
 # --- Compile Definitions ---
 target_compile_definitions(angle_shader_translator_standalone PRIVATE
-    # ANGLE_ENABLE_ESSL
+    # Common definitions
     ANGLE_ENABLE_GLSL
-    # ANGLE_ENABLE_HLSL
-    # ANGLE_ENABLE_VULKAN # For SPIR-V output
+    # ANGLE_ENABLE_WGPU
+    ANGLE_ENABLE_ESSL
     GL_GLES_PROTOTYPES=0
     EGL_EGL_PROTOTYPES=0
     ANGLE_STATIC=1
     ANGLE_EXPORT=
-    $<$<PLATFORM_ID:Windows>:ANGLE_IS_WIN>
-    $<$<PLATFORM_ID:Linux>:ANGLE_IS_LINUX>
-    $<$<PLATFORM_ID:Darwin>:ANGLE_IS_APPLE>
+
+    # --- Platform-specific definitions ---
+    
+    # IMPORTANT: These definitions are now conditional on NOT being an Emscripten build.
+    # This prevents ANGLE_IS_LINUX from being defined when cross-compiling to WASM,
+    # which is the root cause of the futex.h inclusion issue.
+    $<$<AND:$<NOT:$<BOOL:EMSCRIPTEN>>,$<PLATFORM_ID:Windows>>:ANGLE_IS_WIN>
+    $<$<AND:$<NOT:$<BOOL:EMSCRIPTEN>>,$<PLATFORM_ID:Linux>>:ANGLE_IS_LINUX>
+    $<$<AND:$<NOT:$<BOOL:EMSCRIPTEN>>,$<PLATFORM_ID:Darwin>>:ANGLE_IS_APPLE>
 )
 
-if(WIN32)
-    target_compile_definitions(angle_shader_translator_standalone PRIVATE _CRT_SECURE_NO_WARNINGS)
-endif()
+# if(EMSCRIPTEN)
+#     target_link_options(angle_shader_translator_standalone PRIVATE
+#         # Tell the C++ compiler to enable exceptions.
+#         "SHELL:-fexceptions"
+        
+#         # Tell the Emscripten linker to generate JS glue code to handle exceptions.
+#         # This provides the `__cxa_throw` implementation.
+#         "SHELL:-s DISABLE_EXCEPTION_CATCHING=0"
 
-if(UNIX AND NOT APPLE)
-    target_link_libraries(angle_shader_translator_standalone PRIVATE pthread dl)
+#         "SHELL:-s WASM=1"
+#         "SHELL:-s MODULARIZE=1"
+#         "SHELL:-s EXPORT_ES6=1"
+#         "SHELL:-s ENVIRONMENT=node"
+#         "SHELL:-s ALLOW_MEMORY_GROWTH=1"
+#         "SHELL:-s EXPORTED_FUNCTIONS=['_invoke','_malloc','_free']"
+#         "SHELL:-s EXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
+#     )
+# endif()
+if(EMSCRIPTEN)
+    target_link_options(angle_shader_translator_standalone PRIVATE
+        # Build a self-contained WASM module with no JS glue.
+        # This solves all C library import errors (memcpy, exit, etc).
+        "SHELL:-s STANDALONE_WASM=1"
+
+        # Use the older, non-native exception model.
+        # This tells the C++ compiler to enable exceptions...
+        "SHELL:-fno-exceptions"
+        "SHELL:-fno-unwind-tables"
+        "SHELL:-fno-asynchronous-unwind-tables"
+
+        # --- Memory & Exports ---
+        "SHELL:-s ALLOW_MEMORY_GROWTH=1"
+        "SHELL:-s EXPORTED_FUNCTIONS=['_initialize','_invoke','_malloc','_free']"
+    )
 endif()
 
 # --- Message for user ---

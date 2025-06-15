@@ -303,6 +303,18 @@ json handle_translate_request(const json& params) {
         }
     }
 
+    // Update resources for GLES3/WebGL2 and higher specs, mimicking original main()
+    if (spec != SH_GLES2_SPEC && spec != SH_WEBGL_SPEC) {
+        resources.MaxVertexTextureImageUnits = 16;
+        resources.MaxCombinedTextureImageUnits = 32;
+        resources.MaxTextureImageUnits = 16;
+        resources.MaxDrawBuffers = 4;
+    }
+    // WebGL2/GLES3 have even higher minimums for some resources.
+    if (spec == SH_WEBGL2_SPEC || spec == SH_GLES3_SPEC || spec == SH_GLES3_1_SPEC || spec == SH_GLES3_2_SPEC) {
+        resources.MaxDrawBuffers = 8;
+    }
+
     // 4. Output (Optional, defaults to ESSL_OUTPUT)
     if (params.contains("output")) {
         if (!params["output"].is_string()) {
@@ -405,6 +417,7 @@ json handle_translate_request(const json& params) {
 
     // --- Perform Compilation ---
     ShHandle compiler = sh::ConstructCompiler(shaderType, spec, output, &resources);
+    int cr = (int)compiler;
     if (!compiler) {
         return make_json_error_payload(EFailCompilerCreate, "Failed to construct compiler.");
     }
@@ -417,12 +430,18 @@ json handle_translate_request(const json& params) {
 
     if (compile_success) {
         if (compileOptions.objectCode) {
-            if (output == SH_SPIRV_VULKAN_OUTPUT) {
+            // Correctly handle binary vs. text output
+            if (output == SH_SPIRV_VULKAN_OUTPUT)
+            {
+                // For binary output, base64 encode it
                 const sh::BinaryBlob& blob = sh::GetObjectBinaryBlob(compiler);
                 result_payload["object_code_base64"] = (blob.data() && blob.size() > 0) ?
                     base64_encode(reinterpret_cast<const unsigned char*>(blob.data()), (unsigned int)blob.size()) : "";
-            } else {
-                result_payload["object_code_base64"] = base64_encode(sh::GetObjectCode(compiler));
+            }
+            else
+            {
+                // For text output (ESSL, GLSL, HLSL), return the string directly
+                result_payload["object_code"] = sh::GetObjectCode(compiler);
             }
         }
         if (print_active_vars) {
@@ -1301,3 +1320,96 @@ static void PrintSpirv(const sh::BinaryBlob &blob)
     puts(readableSpirv.c_str());
 #endif
 }
+
+#if defined(__EMSCRIPTEN__)
+// This manually provides a stub for a memory management function that
+// Emscripten requires when memory growth is enabled.
+extern "C" {
+    void emscripten_notify_memory_growth(int memory_index) {}
+}
+
+#include <emscripten.h>
+
+// This global string will hold the last result. It's a simple approach
+// for a single-threaded WASM environment.
+static std::string last_result_json;
+
+extern "C"
+{
+    /**
+     * @brief The main entry point for the WASM module.
+     * * Takes a full JSON-RPC request as a string, processes it, and returns
+     * the full JSON-RPC response as a string. The returned string pointer is
+     * valid until the next call to invoke().
+     * * @param request_json_str A C-string containing the JSON request.
+     * @return A C-string containing the JSON response.
+     */
+    EMSCRIPTEN_KEEPALIVE
+    const char *invoke(const char *request_json_str)
+    {
+        json request_json = json::parse(request_json_str, nullptr, false);
+        json response_json_shell;
+        response_json_shell["jsonrpc"] = "2.0";
+        response_json_shell["id"] = nullptr;
+
+        if (request_json.is_discarded())
+        {
+            response_json_shell["error"] = make_json_error_payload(EFailJSONRPCParse, "Parse error: Invalid JSON format.");
+        }
+        else
+        {
+            if (request_json.contains("id"))
+            {
+                response_json_shell["id"] = request_json["id"];
+            }
+
+            if (!request_json.contains("method") || !request_json["method"].is_string())
+            {
+                response_json_shell["error"] = make_json_error_payload(EFailJSONRPCInvalidRequest, "Invalid Request: 'method' is missing or not a string.");
+            }
+            else
+            {
+                std::string method = request_json["method"].get<std::string>();
+                if (method == "translate")
+                {
+                    if (!request_json.contains("params") || !request_json["params"].is_object())
+                    {
+                        response_json_shell["error"] = make_json_error_payload(EFailJSONRPCInvalidParams, "Invalid Params: 'params' is missing or not an object for 'translate' method.");
+                    }
+                    else
+                    {
+                        json result_or_error_payload = handle_translate_request(request_json["params"]);
+                        if (result_or_error_payload.contains("code") && result_or_error_payload.contains("message"))
+                        {
+                            response_json_shell["error"] = result_or_error_payload;
+                        }
+                        else
+                        {
+                            response_json_shell["result"] = result_or_error_payload;
+                        }
+                    }
+                }
+                else
+                {
+                    response_json_shell["error"] = make_json_error_payload(EFailJSONRPCMethodNotFound, "Method not found: " + method);
+                }
+            }
+        }
+        
+        if (response_json_shell.contains("error") && response_json_shell.contains("result")) {
+            response_json_shell.erase("result");
+        }
+
+        last_result_json = response_json_shell.dump();
+        return last_result_json.c_str();
+    }
+
+    // Return an int to signal success/failure to Python
+    int initialize() {
+        if (sh::Initialize()) {
+            return 1; // Success
+        }
+        return 0; // Failure
+    }
+}
+#endif
