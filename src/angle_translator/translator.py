@@ -50,8 +50,6 @@ class ShaderTranslator:
             to ensure a clean shutdown.
             """
             if not self._closed:
-                print("Finalizing ANGLE library and wasmtime resources...")
-                
                 # Finalize the C++ ANGLE library first
                 if hasattr(self, '_finalize') and self._finalize:
                     self._finalize(self.store)
@@ -72,9 +70,8 @@ class ShaderTranslator:
                 
                 self._closed = True # Mark as closed to prevent re-entry
 
-    # REMOVED: The problematic __del__ method is gone.
-    # def __del__(self):
-    #     self.close()
+    def __del__(self):
+        self.close()
 
     def __enter__(self):
         """Called when entering a 'with' block."""
@@ -85,16 +82,82 @@ class ShaderTranslator:
         self.close()
 
     # All other methods (translate_shader, etc.) are unchanged.
-    def translate_shader(self, shader_code: str, shader_type: str, spec: str = "webgl", output: str = "essl", print_vars: bool = True) -> dict:
+    def translate_shader(self, shader_code: str, shader_type: str, spec: str = "webgl", output: str = "essl", print_vars: bool = True, enable_name_hashing: bool = True) -> dict:
+        """
+        Translates shader code using the ANGLE shader translator WASM module.
+
+        This method sends a JSON-RPC request to the compiled WebAssembly module
+        to perform shader compilation and translation based on the provided
+        parameters.
+
+        Args:
+            shader_code (str): The GLSL shader code as a string (e.g., from a .vert or .frag file).
+            shader_type (str): The type of shader. Valid options include:
+                               - "vertex" (for GL_VERTEX_SHADER)
+                               - "fragment" (for GL_FRAGMENT_SHADER)
+                               - "compute" (for GL_COMPUTE_SHADER)
+                               - "geometry" (for GL_GEOMETRY_SHADER_EXT)
+                               - "tess_control" (for GL_TESS_CONTROL_SHADER_EXT)
+                               - "tess_eval" (for GL_TESS_EVALUATION_SHADER_EXT)
+            spec (str, optional): The shader specification to use. Defaults to "webgl".
+                                  Other common options include:
+                                  - "gles2", "gles3", "gles31", "gles32" (for GLES specs)
+                                  - "webgl", "webgln", "webgl2", "webgl3" (for WebGL specs)
+            output (str, optional): The desired output format for the translated shader.
+                                    Defaults to "essl" (GLSL ES). Other options:
+                                    - "essl" (GLSL ES)
+                                    - "glsl" or "glsl[NUM]" (e.g., "glsl330" for GLSL 3.30 Core)
+                                    - "spirv" (Vulkan SPIR-V not implemented yet)
+                                    - "hlsl9", "hlsl11" (HLSL for DirectX 9 or 11 not implemented yet)
+                                    - "msl" (Metal Shading Language not implemented yet)
+            print_vars (bool, optional): If True, the response will include a detailed
+                                         `active_variables` dictionary showing attributes,
+                                         uniforms, varyings, and output variables. Defaults to True.
+            enable_name_hashing (bool, optional): Controls whether ANGLE's internal name hashing
+                                                  mechanism is active. Defaults to True.
+                                                  - If `True`: ANGLE will *prevent* automatic
+                                                    name mangling (like prepending `_u` to uniforms
+                                                    when translating from WebGL to GLSL).
+                                                  - If `False`: ANGLE's default behavior for
+                                                    name mangling which often includes 
+                                                    prefixing names (e.g., `_u_myUniform`).
+
+        Returns:
+            dict: A dictionary containing the translation result.
+                  On success, this typically includes:
+                  - 'info_log' (str): Compilation log messages (warnings, errors).
+                  - 'object_code' (str): The translated shader code (for text outputs).
+                  - 'object_code_base64' (str): Base64 encoded binary shader (for 'spirv' output).
+                  - 'active_variables' (dict, if print_vars=True): Details of active shader variables.
+                  
+                  On failure (e.g., invalid parameters or compilation error), it will contain
+                  an 'error' key with details. You should check for the presence of this key
+                  in the returned dictionary to handle errors.
+
+        Raises:
+            RuntimeError: If the translator has been closed or if the WASM invocation
+                          returns a null pointer.
+            json.JSONDecodeError: If the response from WASM is not valid JSON.
+        """
         if self._closed:
             raise RuntimeError("Translator has been closed and cannot be used.")
         shader_code_b64 = base64.b64encode(shader_code.encode('utf-8')).decode('utf-8')
+
+        # Build the resources dictionary
+        resources_params = {}
+        # Add other resources as needed
+        resources_params["EnableNameHashing"] = enable_name_hashing
+
         request_payload = {
             "jsonrpc": "2.0", "id": 1, "method": "translate",
             "params": {
-                "shader_code_base64": shader_code_b64, "shader_type": shader_type,
-                "spec": spec, "output": output, "print_active_variables": print_vars,
-                "compile_options": {"objectCode": True}
+                "shader_code_base64": shader_code_b64, 
+                "shader_type": shader_type,
+                "spec": spec, 
+                "output": output, 
+                "print_active_variables": print_vars,
+                "compile_options": {"objectCode": True},
+                "resources": resources_params,
             }
         }
         request_str = json.dumps(request_payload)

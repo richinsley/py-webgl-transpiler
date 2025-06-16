@@ -57,6 +57,14 @@ static void PrintSpirvToBuffer(const sh::BinaryBlob &blob, std::string& out_buff
 static json SerializeShaderVariable(const sh::ShaderVariable &var);
 static json SerializeActiveVariablesToJson(ShHandle compiler);
 
+// jl - a simple null hash function to disable name mangling
+static khronos_uint64_t NullHashFunction(const char *str, size_t len) {
+    return 0; // A simple null hash function that does nothing.
+              // We use this as a placeholder to signal 'no hashing'.
+              // ANGLE's internal logic will likely treat a non-nullptr
+              // HashFunction as "enabled".
+}
+
 // Modified version of PrintSpirv
 #if defined(ANGLE_ENABLE_VULKAN)
 #    include <spirv-tools/libspirv.hpp>
@@ -371,6 +379,23 @@ json handle_translate_request(const json& params) {
             return make_json_error_payload(EFailJSONRPCInvalidParams, "'resources' must be an object.");
         }
         const auto& res_params = params["resources"];
+        
+        // Handle 'EnableNameHashing' specifically
+        if (res_params.contains("EnableNameHashing")) {
+            if (!res_params["EnableNameHashing"].is_boolean()) {
+                return make_json_error_payload(EFailJSONRPCInvalidParams, "resources.EnableNameHashing must be a boolean.");
+            }
+            // If EnableNameHashing is true, set a non-nullptr hash function to disable ANGLE's default _u prefix.
+            // If false, leave it as nullptr (default from GenerateResources), which enables ANGLE's _u prefix.
+            if (res_params["EnableNameHashing"].get<bool>()) {
+                resources.HashFunction = NullHashFunction;
+            } else {
+                resources.HashFunction = nullptr; // Explicitly revert to default behavior for _u prefixing
+            }
+        }
+        // else: If "EnableNameHashing" is not present, resources.HashFunction remains nullptr from GenerateResources(),
+        //       meaning ANGLE's default _u prefixing will occur.
+
         // Example: MaxVertexAttribs
         if (res_params.contains("MaxVertexAttribs")) {
             if (!res_params["MaxVertexAttribs"].is_number_integer()) {
@@ -385,13 +410,12 @@ json handle_translate_request(const json& params) {
             }
             resources.OES_EGL_image_external = res_params["OES_EGL_image_external"].get<int>();
         }
-        // ... (Add thorough checks and assignments for all controllable resource fields) ...
     }
     // Adjust resources based on spec (mirroring original logic more carefully)
     if (spec != SH_GLES2_SPEC && spec != SH_WEBGL_SPEC) {
         bool resources_overridden = params.contains("resources") && params["resources"].is_object();
         if (!resources_overridden || !params["resources"].contains("MaxDrawBuffers")) {
-             resources.MaxDrawBuffers = 8;
+            resources.MaxDrawBuffers = 8;
         }
         // ... (similar for MaxVertexTextureImageUnits, MaxTextureImageUnits)
     }
@@ -401,9 +425,47 @@ json handle_translate_request(const json& params) {
     } else if (spec == SH_WEBGL_SPEC) { // Default WebGL1.0 spec implies FragmentPrecisionHigh = 1
         bool resources_overridden = params.contains("resources") && params["resources"].is_object();
         if (!resources_overridden || !params["resources"].contains("FragmentPrecisionHigh")) {
-             resources.FragmentPrecisionHigh = 1;
+            resources.FragmentPrecisionHigh = 1;
         }
     }
+
+    // if (params.contains("resources")) {
+    //     if (!params["resources"].is_object()) {
+    //         return make_json_error_payload(EFailJSONRPCInvalidParams, "'resources' must be an object.");
+    //     }
+    //     const auto& res_params = params["resources"];
+    //     // Example: MaxVertexAttribs
+    //     if (res_params.contains("MaxVertexAttribs")) {
+    //         if (!res_params["MaxVertexAttribs"].is_number_integer()) {
+    //              return make_json_error_payload(EFailJSONRPCInvalidParams, "resources.MaxVertexAttribs must be an integer.");
+    //         }
+    //         resources.MaxVertexAttribs = res_params["MaxVertexAttribs"].get<int>();
+    //     }
+    //     // Example: OES_EGL_image_external (boolean represented as 0 or 1 int)
+    //     if (res_params.contains("OES_EGL_image_external")) {
+    //         if (!res_params["OES_EGL_image_external"].is_number_integer()) {
+    //              return make_json_error_payload(EFailJSONRPCInvalidParams, "resources.OES_EGL_image_external must be an integer (0 or 1).");
+    //         }
+    //         resources.OES_EGL_image_external = res_params["OES_EGL_image_external"].get<int>();
+    //     }
+    // }
+    // // Adjust resources based on spec (mirroring original logic more carefully)
+    // if (spec != SH_GLES2_SPEC && spec != SH_WEBGL_SPEC) {
+    //     bool resources_overridden = params.contains("resources") && params["resources"].is_object();
+    //     if (!resources_overridden || !params["resources"].contains("MaxDrawBuffers")) {
+    //          resources.MaxDrawBuffers = 8;
+    //     }
+    //     // ... (similar for MaxVertexTextureImageUnits, MaxTextureImageUnits)
+    // }
+    // // Special case for -s=wn (webgln)
+    // if (spec == SH_WEBGL_SPEC && params.value("spec", "") == "webgln") {
+    //     resources.FragmentPrecisionHigh = 0;
+    // } else if (spec == SH_WEBGL_SPEC) { // Default WebGL1.0 spec implies FragmentPrecisionHigh = 1
+    //     bool resources_overridden = params.contains("resources") && params["resources"].is_object();
+    //     if (!resources_overridden || !params["resources"].contains("FragmentPrecisionHigh")) {
+    //          resources.FragmentPrecisionHigh = 1;
+    //     }
+    // }
 
 
     // 7. print_active_variables (Optional)
