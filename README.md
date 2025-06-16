@@ -20,11 +20,11 @@ pip install py-webgl-transpiler
 Here is a quick example of translating a WebGL 2 fragment shader to desktop GLSL.
 ```python
 import base64
-from angle_translator import WasmShaderTranslator
+from angle_translator import ShaderTranslator
 
 # 1. Initialize the translator
 # This loads the WASM module into memory and initializes the transpiler.
-translator = WasmShaderTranslator()
+translator = ShaderTranslator()
 
 # 2. Define a shader to translate
 webgl2_shader = """#version 300 es

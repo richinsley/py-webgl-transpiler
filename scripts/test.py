@@ -3,7 +3,7 @@ import base64
 # Add Config and Engine to the wasmtime imports
 from wasmtime import Store, Module, Instance, Linker, Trap, Config, Engine, WasiConfig
 
-class WasmShaderTranslator:
+class ShaderTranslator:
     """
     A Python wrapper for the ANGLE shader translator WASM module.
     Handles memory management for passing strings to and from the WASM module.
@@ -49,7 +49,7 @@ class WasmShaderTranslator:
         self._free = self.exports["free"]
         print("Module loaded and functions exported successfully.")
 
-    # ... the rest of your WasmShaderTranslator class remains exactly the same ...
+    # ... the rest of your ShaderTranslator class remains exactly the same ...
     def _read_string_from_memory(self, ptr: int) -> str:
         """Helper to read a null-terminated C-string from WASM memory."""
         # Read the raw bytes from the pointer onwards
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     # WASM_FILE_PATH = "./wasm_output/angle_shader_translator_standalone.wasm"
     WASM_FILE_PATH = "/home/rich/projects/arcana-nvenc-docker/test/wasm_output/angle_shader_translator_standalone2.wasm"
 
-    translator = WasmShaderTranslator(WASM_FILE_PATH)
+    translator = ShaderTranslator(WASM_FILE_PATH)
 
     # --- Example 1: A simple valid fragment shader ---
     fragment_shader = """

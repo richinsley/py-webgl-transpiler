@@ -3,7 +3,7 @@ import base64
 from wasmtime import Store, Module, Instance, Linker, Trap, Config, Engine, WasiConfig
 import importlib.resources
 
-class WasmShaderTranslator:
+class ShaderTranslator:
     """
     A Python wrapper for the ANGLE shader translator WASM module.
     Handles loading the WASM module and managing memory for communication.

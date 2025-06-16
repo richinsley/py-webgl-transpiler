@@ -1,11 +1,11 @@
 import pytest
 import base64
-from angle_translator import WasmShaderTranslator
+from angle_translator import ShaderTranslator
 
 @pytest.fixture(scope="module")
 def translator():
-    """Provides a single WasmShaderTranslator instance for all tests."""
-    return WasmShaderTranslator()
+    """Provides a single ShaderTranslator instance for all tests."""
+    return ShaderTranslator()
 
 def test_successful_frag_translation(translator):
     """Tests a valid WebGL fragment shader translation to ESSL (GLSL ES)."""

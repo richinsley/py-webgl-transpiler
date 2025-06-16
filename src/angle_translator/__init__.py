@@ -1,5 +1,5 @@
 # src/angle_translator/__init__.py
 
-from .translator import WasmShaderTranslator
+from .translator import ShaderTranslator
 
-__all__ = ["WasmShaderTranslator"]
+__all__ = ["ShaderTranslator"]

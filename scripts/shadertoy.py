@@ -7,11 +7,11 @@ import base64
 import re
 
 # ==============================================================================
-# 1. Include the WasmShaderTranslator class from our previous work
+# 1. Include the ShaderTranslator class from our previous work
 # ==============================================================================
 from wasmtime import Store, Module, Instance, Linker, Trap, Config, Engine, WasiConfig
 
-class WasmShaderTranslator:
+class ShaderTranslator:
     """
     A Python wrapper for the ANGLE shader translator WASM module.
     Handles memory management for passing strings to and from the WASM module.
@@ -91,7 +91,7 @@ class WasmShaderTranslator:
 # ==============================================================================
 WASM_FILE_PATH = "./wasm_output/angle_shader_translator_standalone.wasm"
 try:
-    translator = WasmShaderTranslator(WASM_FILE_PATH)
+    translator = ShaderTranslator(WASM_FILE_PATH)
 except Exception as e:
     print(f"FATAL: Could not initialize the WASM translator: {e}")
     exit()
