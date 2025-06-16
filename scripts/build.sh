@@ -29,7 +29,7 @@ cp stdio_shader_translator/debug_wasm.cpp angle/src/common/
 
 # Use absolute paths to ensure the build directory is in the correct location.
 BUILD_DIR="/workspace/build"
-WASM_OUT_DIR="/workspace/wasm_out"
+WASM_OUT_DIR="/workspace/src/angle_translator/wasm"
 
 # Create the build directory, configure, and compile.
 echo "--- Configuring, building, and optimizing... ---"

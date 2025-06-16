@@ -20,8 +20,8 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/your-username/angle-translator-py"
-"Bug Tracker" = "https://github.com/your-username/angle-translator-py/issues"
+"Homepage" = "https://github.com/richinsley/py-webgl-transpiler"
+"Bug Tracker" = "https://github.com/richinsley/py-webgl-transpiler/issues"
 
 [build-system]
 requires = ["setuptools>=61.0"]
