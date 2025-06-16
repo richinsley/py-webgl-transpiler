@@ -373,7 +373,7 @@ if(EMSCRIPTEN)
 
         # --- Memory & Exports ---
         "SHELL:-s ALLOW_MEMORY_GROWTH=1"
-        "SHELL:-s EXPORTED_FUNCTIONS=['_initialize','_invoke','_malloc','_free']"
+        "SHELL:-s EXPORTED_FUNCTIONS=['_initialize','_finalize','_invoke','_malloc','_free']"
     )
 endif()
 

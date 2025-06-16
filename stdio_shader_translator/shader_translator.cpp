@@ -1411,5 +1411,9 @@ extern "C"
         }
         return 0; // Failure
     }
+
+    void finalize() {
+        sh::Finalize();
+    }
 }
 #endif
