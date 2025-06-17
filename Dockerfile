@@ -15,5 +15,5 @@ COPY scripts/setup.sh scripts/build.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/setup.sh /usr/local/bin/build.sh
 
 # The container will start with an interactive bash shell.
-# From inside the container, you can run `setup.sh` and then `build.sh`.
+# From inside the container, you can run `setup.sh` and then `build.sh`
 CMD ["bash"]

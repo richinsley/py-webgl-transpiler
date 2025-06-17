@@ -82,7 +82,7 @@ class ShaderTranslator:
         self.close()
 
     # All other methods (translate_shader, etc.) are unchanged.
-    def translate_shader(self, shader_code: str, shader_type: str, spec: str = "webgl", output: str = "essl", print_vars: bool = True, enable_name_hashing: bool = True) -> dict:
+    def translate_shader(self, shader_code: str, shader_type: str, spec: str = "webgl", output: str = "essl", print_vars: bool = True, enable_name_hashing: bool = False) -> dict:
         """
         Translates shader code using the ANGLE shader translator WASM module.
 
@@ -114,13 +114,14 @@ class ShaderTranslator:
                                          `active_variables` dictionary showing attributes,
                                          uniforms, varyings, and output variables. Defaults to True.
             enable_name_hashing (bool, optional): Controls whether ANGLE's internal name hashing
-                                                  mechanism is active. Defaults to True.
-                                                  - If `True`: ANGLE will *prevent* automatic
-                                                    name mangling (like prepending `_u` to uniforms
-                                                    when translating from WebGL to GLSL).
+                                                  mechanism is active. Defaults to False.
+                                                  - If `True`: ANGLE will generate unique names
+                                                    for shader variables, which can help avoid
+                                                    name collisions in complex shaders or when
+                                                    integrating multiple shaders.
                                                   - If `False`: ANGLE's default behavior for
                                                     name mangling which often includes 
-                                                    prefixing names (e.g., `_u_myUniform`).
+                                                    prefixing names with '_u' (e.g., `myUniform -> _umyUniform`).
 
         Returns:
             dict: A dictionary containing the translation result.

@@ -58,11 +58,15 @@ static json SerializeShaderVariable(const sh::ShaderVariable &var);
 static json SerializeActiveVariablesToJson(ShHandle compiler);
 
 // jl - a simple null hash function to disable name mangling
-static khronos_uint64_t NullHashFunction(const char *str, size_t len) {
-    return 0; // A simple null hash function that does nothing.
-              // We use this as a placeholder to signal 'no hashing'.
-              // ANGLE's internal logic will likely treat a non-nullptr
-              // HashFunction as "enabled".
+const khronos_uint64_t FNV_PRIME = 1099511628211ULL; // 2^40 + 2^8 + 0xB3
+const khronos_uint64_t FNV_OFFSET_BASIS = 14695981039346656037ULL; // 64-bit offset basis
+static khronos_uint64_t FNVHashFunction(const char *str, size_t len) {
+    khronos_uint64_t hash = FNV_OFFSET_BASIS;
+    for (size_t i = 0; i < len; ++i) {
+        hash ^= static_cast<khronos_uint64_t>(str[i]);
+        hash *= FNV_PRIME;
+    }
+    return hash;
 }
 
 // Modified version of PrintSpirv
@@ -388,7 +392,7 @@ json handle_translate_request(const json& params) {
             // If EnableNameHashing is true, set a non-nullptr hash function to disable ANGLE's default _u prefix.
             // If false, leave it as nullptr (default from GenerateResources), which enables ANGLE's _u prefix.
             if (res_params["EnableNameHashing"].get<bool>()) {
-                resources.HashFunction = NullHashFunction;
+                resources.HashFunction = FNVHashFunction; // Use our custom hash function to disable ANGLE's _u prefixing
             } else {
                 resources.HashFunction = nullptr; // Explicitly revert to default behavior for _u prefixing
             }
