@@ -1413,6 +1413,10 @@ extern "C"
     EMSCRIPTEN_KEEPALIVE
     const char *invoke(const char *request_json_str)
     {
+        // dirty trick to disable the "_u" prepend to user-defined names
+        // but it's wasm, so we can do this safely
+        char * kpoke = (char *)sh::kUserDefinedNamePrefix;
+        kpoke[0] = '\0'; // Reset the user-defined name prefix
         json request_json = json::parse(request_json_str, nullptr, false);
         json response_json_shell;
         response_json_shell["jsonrpc"] = "2.0";
