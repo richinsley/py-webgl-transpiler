@@ -1,6 +1,9 @@
 ## clone the repo
 ```bash
-git clone git@github.com:richinsley/pyshadertranslator.git
+git clone git@github.com:richinsley/py-webgl-transpiler.git
+cd py-webgl-transpiler
+# force rebuild for changes to dockerfile
+docker build --no-cache .
 ```
 
 ## build with docker image
